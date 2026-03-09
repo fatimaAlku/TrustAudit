@@ -4,14 +4,19 @@
   "description": "Smart IT Audit & Compliance Platform frontend",
   "private": true,
   "scripts": {
-    "start": "echo \"Define your dev server script here (e.g. Vite or CRA)\"",
-    "build": "echo \"Define your build script here\"",
-    "test": "echo \"Define your test script here\""
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Add your test runner here\""
   },
   "dependencies": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-router-dom": "7.13.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react-swc": "4.2.3",
+    "vite": "7.3.1"
   }
 }
 

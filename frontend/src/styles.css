@@ -1,11 +1,12 @@
 :root {
-  --bg: #001b4f;
-  --bg-elevated: #002a7f;
-  --bg-subtle: #00163a;
-  --border-subtle: rgba(0, 145, 218, 0.32);
-  --accent: #005eb8;
-  --accent-soft: rgba(0, 94, 184, 0.18);
-  --accent-strong: #0091da;
+  /* KPMG-inspired blue + purple */
+  --bg: #001b4f; /* deep KPMG blue */
+  --bg-elevated: #00338d; /* brand blue */
+  --bg-subtle: #1e1038; /* subtle purple tint */
+  --border-subtle: rgba(148, 163, 253, 0.35); /* soft indigo border */
+  --accent: #4c1d95; /* purple accent */
+  --accent-soft: rgba(129, 140, 248, 0.18); /* soft indigo background */
+  --accent-strong: #818cf8; /* bright indigo for highlights */
   --text-main: #e5e7eb;
   --text-muted: #9ca3af;
   --text-error: #f97373;
@@ -17,7 +18,7 @@
 *,
 *::before,
 *::after {
-  box-sizing: border-box;
+  box-sizing: border-box; 
 }
 
 html,
@@ -25,14 +26,14 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text',
-    'Segoe UI', sans-serif;
+  font-family: 'Times New Roman', Times, serif;
   color: var(--text-main);
+  /* KPMG blue base fading into indigo/purple */
   background: radial-gradient(
     circle at top,
     #00338d 0,
-    #001b4f 50%,
-    #000814 100%
+    #001b4f 40%,
+    #020617 100%
   );
 }
 
@@ -58,7 +59,13 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 3.5rem;
-  background: linear-gradient(to bottom, rgba(0, 51, 141, 0.98), transparent);
+  /* blue header with a subtle purple tint */
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 51, 141, 0.97),
+    rgba(76, 29, 149, 0.8),
+    transparent
+  );
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(0, 145, 218, 0.45);
 }
@@ -88,7 +95,7 @@ body {
 
 .nav-link:hover {
   color: var(--text-main);
-  background-color: rgba(0, 51, 141, 0.7);
+  background-color: rgba(76, 29, 149, 0.7);
   transform: translateY(-1px);
 }
 
@@ -138,7 +145,8 @@ body {
 }
 
 .card {
-  background: radial-gradient(circle at top left, #00338d 0, #001b4f 65%);
+  /* blue card with purple highlight */
+  background: radial-gradient(circle at top left, #4c1d95 0, #001b4f 65%);
   border-radius: var(--radius-lg);
   padding: 1.35rem 1.4rem 1.35rem;
   border: 1px solid var(--border-subtle);

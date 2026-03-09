@@ -1,0 +1,17 @@
+{
+  "name": "trustaudit-frontend",
+  "version": "1.0.0",
+  "description": "Smart IT Audit & Compliance Platform frontend",
+  "private": true,
+  "scripts": {
+    "start": "echo \"Define your dev server script here (e.g. Vite or CRA)\"",
+    "build": "echo \"Define your build script here\"",
+    "test": "echo \"Define your test script here\""
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-router-dom": "7.13.1"
+  }
+}
+

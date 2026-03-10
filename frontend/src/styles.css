@@ -246,6 +246,12 @@ body {
   border-bottom: 1px solid rgba(0, 51, 141, 0.55);
 }
 
+.table input,
+.table select {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 0.86rem;
+}
+
 .table th {
   text-align: left;
   color: var(--text-muted);
@@ -257,6 +263,10 @@ body {
 
 .table tr:last-child td {
   border-bottom: none;
+}
+
+.table-row-selected {
+  background-color: rgba(129, 140, 248, 0.15);
 }
 
 .form {
@@ -278,17 +288,20 @@ body {
 }
 
 .form input,
-.form textarea {
+.form textarea,
+.form select {
   border-radius: 0.7rem;
   border: 1px solid rgba(0, 51, 141, 0.75);
   padding: 0.5rem 0.7rem;
   background-color: rgba(0, 27, 79, 0.75);
   color: var(--text-main);
   font-size: 0.9rem;
+  font-family: 'Times New Roman', Times, serif;
 }
 
 .form input:focus,
-.form textarea:focus {
+.form textarea:focus,
+.form select:focus {
   outline: none;
   border-color: var(--accent-strong);
   box-shadow: 0 0 0 1px rgba(0, 145, 218, 0.45);
@@ -308,6 +321,7 @@ body {
   border-radius: var(--radius-pill);
   padding: 0.45rem 1rem;
   font-size: 0.86rem;
+  font-family: 'Times New Roman', Times, serif;
   cursor: pointer;
   display: inline-flex;
   align-items: center;

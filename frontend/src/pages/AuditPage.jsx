@@ -6,7 +6,10 @@ import {
   getControls,
   getControlTests,
   saveControlTest,
+  getEvidence,
+  createEvidence,
 } from '../services/apiService';
+import { getCurrentUser } from '../services/authService';
 
 const AuditPage = () => {
   const [audits, setAudits] = useState([]);
@@ -28,12 +31,20 @@ const AuditPage = () => {
   const [controlTests, setControlTests] = useState([]);
   const [controlsLoading, setControlsLoading] = useState(false);
   const [controlsError, setControlsError] = useState(null);
+  const [evidenceItems, setEvidenceItems] = useState([]);
+  const [evidenceSubmitting, setEvidenceSubmitting] = useState(false);
+  const [evidenceError, setEvidenceError] = useState(null);
+  const [evidenceDrafts, setEvidenceDrafts] = useState({});
+  const [currentOrg, setCurrentOrg] = useState(
+    () => getCurrentUser()?.currentOrg || null,
+  );
 
   useEffect(() => {
     const fetchAudits = async () => {
       try {
         const data = await getAudits();
-        setAudits(data.items || []);
+        const items = data.items || [];
+        setAudits(items);
       } catch (err) {
         setError('Unable to load audits');
       } finally {
@@ -65,6 +76,7 @@ const AuditPage = () => {
         teamMembers,
         framework,
         timeline,
+        organization: currentOrg || undefined,
       };
 
       const created = await createAudit(payload);
@@ -120,19 +132,23 @@ const AuditPage = () => {
     if (!audit) return;
     setControlsLoading(true);
     setControlsError(null);
+    setEvidenceError(null);
 
     try {
-      const [controlsRes, testsRes] = await Promise.all([
+      const [controlsRes, testsRes, evidenceRes] = await Promise.all([
         getControls(audit.framework),
         getControlTests(audit.id),
+        getEvidence(audit.id),
       ]);
 
       setControls(controlsRes.items || []);
       setControlTests(testsRes.items || []);
+      setEvidenceItems(evidenceRes.items || []);
     } catch (err) {
       setControlsError('Unable to load controls for this audit.');
       setControls([]);
       setControlTests([]);
+      setEvidenceItems([]);
     } finally {
       setControlsLoading(false);
     }
@@ -145,6 +161,9 @@ const AuditPage = () => {
 
   const getTestForControl = (controlId) =>
     controlTests.find((t) => t.controlId === controlId) || null;
+
+  const getEvidenceForControl = (controlId) =>
+    evidenceItems.filter((e) => e.controlId === controlId);
 
   const handleControlStatusChange = async (control, newStatus) => {
     if (!selectedAuditId) return;
@@ -260,6 +279,57 @@ const AuditPage = () => {
       if (audit) {
         loadControlsForAudit(audit);
       }
+    }
+  };
+
+  const handleEvidenceDraftChange = (controlId, field, value) => {
+    setEvidenceDrafts((prev) => ({
+      ...prev,
+      [controlId]: {
+        type: 'Other',
+        title: '',
+        link: '',
+        description: '',
+        ...(prev[controlId] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleAddEvidence = async (control) => {
+    if (!selectedAuditId) return;
+    const draft = evidenceDrafts[control.id] || {};
+    const { title, type, link, description } = draft;
+
+    if (!title) {
+      setEvidenceError('Please provide a short title for the evidence item.');
+      return;
+    }
+
+    setEvidenceSubmitting(true);
+    setEvidenceError(null);
+
+    try {
+      const created = await createEvidence(selectedAuditId, {
+        controlId: control.id,
+        title,
+        type: type || 'Other',
+        link: link || '',
+        description: description || '',
+      });
+
+      setEvidenceItems((prev) => [...prev, created]);
+      setEvidenceDrafts((prev) => {
+        const next = { ...prev };
+        delete next[control.id];
+        return next;
+      });
+    } catch (err) {
+      setEvidenceError(
+        err?.message || 'Unable to save evidence. Please try again.',
+      );
+    } finally {
+      setEvidenceSubmitting(false);
     }
   };
 
@@ -438,6 +508,7 @@ const AuditPage = () => {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Organization</th>
                   <th>Framework</th>
                   <th>Scope</th>
                   <th>Team</th>
@@ -452,7 +523,11 @@ const AuditPage = () => {
                     <td colSpan={7}>No audits yet. Add your first audit.</td>
                   </tr>
                 )}
-                {audits.map((audit) => (
+                {audits
+                  .filter((audit) =>
+                    currentOrg ? audit.organization === currentOrg : true,
+                  )
+                  .map((audit) => (
                   <tr
                     key={audit.id}
                     className={
@@ -462,6 +537,7 @@ const AuditPage = () => {
                     style={{ cursor: 'pointer' }}
                   >
                     <td>{audit.name}</td>
+                    <td>{audit.organization || '—'}</td>
                     <td>{audit.framework}</td>
                     <td>{audit.scope}</td>
                     <td>{audit.teamMembers}</td>
@@ -537,6 +613,7 @@ const AuditPage = () => {
                       <th>Control Objectives</th>
                       <th>Status</th>
                       <th>Notes / Evidence Reference</th>
+                      <th>Uploaded Evidence</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -549,6 +626,8 @@ const AuditPage = () => {
                     )}
                     {controls.map((control) => {
                       const test = getTestForControl(control.id);
+                      const items = getEvidenceForControl(control.id);
+                      const draft = evidenceDrafts[control.id] || {};
                       return (
                         <tr key={control.id}>
                           <td>{control.id}</td>
@@ -596,12 +675,95 @@ const AuditPage = () => {
                               style={{ width: '100%' }}
                             />
                           </td>
+                          <td>
+                            {items.length > 0 && (
+                              <ul style={{ paddingLeft: '1rem', marginTop: 0 }}>
+                                {items.map((ev) => (
+                                  <li key={ev.id}>
+                                    <strong>{ev.title}</strong>
+                                    {ev.type ? ` (${ev.type})` : ''}
+                                    {ev.link ? (
+                                      <>
+                                        {' – '}
+                                        <a
+                                          href={ev.link}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          open
+                                        </a>
+                                      </>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <div className="form" style={{ marginTop: '0.5rem' }}>
+                              <div className="form-row">
+                                <input
+                                  type="text"
+                                  placeholder="Evidence title (e.g. Access review report)"
+                                  value={draft.title || ''}
+                                  onChange={(e) =>
+                                    handleEvidenceDraftChange(
+                                      control.id,
+                                      'title',
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="form-row">
+                                <input
+                                  type="text"
+                                  placeholder="Link or file path (optional)"
+                                  value={draft.link || ''}
+                                  onChange={(e) =>
+                                    handleEvidenceDraftChange(
+                                      control.id,
+                                      'link',
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="form-row">
+                                <textarea
+                                  rows={2}
+                                  placeholder="Short description (e.g. scope, period covered)"
+                                  value={draft.description || ''}
+                                  onChange={(e) =>
+                                    handleEvidenceDraftChange(
+                                      control.id,
+                                      'description',
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="form-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  onClick={() => handleAddEvidence(control)}
+                                  disabled={evidenceSubmitting}
+                                >
+                                  Add evidence
+                                </button>
+                              </div>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+              {evidenceError && (
+                <p className="text-error" style={{ marginTop: '0.75rem' }}>
+                  {evidenceError}
+                </p>
+              )}
             </>
           )}
         </section>

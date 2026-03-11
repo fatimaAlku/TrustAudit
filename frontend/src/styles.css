@@ -121,6 +121,19 @@ body {
   margin: 0 auto;
 }
 
+.page-auth {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.page-auth .panel {
+  width: 100%;
+  max-width: 640px;
+}
+
 .page-header {
   margin-bottom: 2.2rem;
 }
@@ -267,6 +280,16 @@ body {
 
 .table-row-selected {
   background-color: rgba(129, 140, 248, 0.15);
+}
+
+.org-select {
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(0, 51, 141, 0.75);
+  padding: 0.35rem 0.7rem;
+  background-color: rgba(0, 27, 79, 0.75);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-family: 'Times New Roman', Times, serif;
 }
 
 .form {

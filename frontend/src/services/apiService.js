@@ -90,8 +90,13 @@ export async function saveControlTest(auditId, payload) {
   return handleResponse(res);
 }
 
-export async function uploadEvidence(payload) {
-  const res = await fetch(`${API_BASE_URL}/evidence`, {
+export async function getEvidence(auditId) {
+  const res = await fetch(`${API_BASE_URL}/audits/${auditId}/evidence`);
+  return handleResponse(res);
+}
+
+export async function createEvidence(auditId, payload) {
+  const res = await fetch(`${API_BASE_URL}/audits/${auditId}/evidence`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

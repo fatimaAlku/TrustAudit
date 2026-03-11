@@ -1,8 +1,19 @@
 const express = require('express');
 const cors = require('cors');
+const admin = require('firebase-admin');
 const config = require('./config/config');
+const serviceAccount = require('./firebase-admin-sdk.json');
 
 const app = express();
+
+// Initialize Firebase Admin with local service account for Firestore
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+const db = admin.firestore();
 
 // Allow the frontend dev server to call this API
 const ALLOWED_ORIGIN = 'http://localhost:5173';
@@ -34,18 +45,6 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-// In-memory store for audit projects (demo only)
-let audits = [];
-let nextAuditId = 1;
-
-// In-memory store for control test results (per-audit, per-control)
-let controlTests = [];
-let nextControlTestId = 1;
-
-// In-memory store for uploaded evidence (per-audit, per-control)
-let evidences = [];
-let nextEvidenceId = 1;
 
 // Preloaded control library based on common frameworks
 const controlLibrary = [
@@ -142,17 +141,34 @@ const controlLibrary = [
 const apiRouter = express.Router();
 
 // Audits endpoints
-apiRouter.get('/audits', (req, res) => {
-  res.json({ items: audits });
+apiRouter.get('/audits', async (req, res) => {
+  try {
+    const snapshot = await db.collectionGroup('audits').get();
+    const items = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      const orgRef = doc.ref.parent.parent;
+      const organization = orgRef ? orgRef.id : data.organization || 'Default Organization';
+      return {
+        id: doc.id,
+        ...data,
+        organization,
+      };
+    });
+    res.json({ items });
+  } catch (err) {
+    console.error('Error fetching audits from Firestore', err);
+    res.status(500).json({ error: 'Failed to fetch audits' });
+  }
 });
 
-apiRouter.post('/audits', (req, res) => {
+apiRouter.post('/audits', async (req, res) => {
   const {
     name,
     scope,
     teamMembers,
     framework,
     timeline,
+    organization,
     status = 'Planned',
     progress = 0,
   } = req.body || {};
@@ -160,9 +176,9 @@ apiRouter.post('/audits', (req, res) => {
   if (!name || !framework) {
     return res.status(400).json({ error: 'Missing required fields: name, framework' });
   }
+  const orgId = organization || 'Default_Organization';
 
-  const audit = {
-    id: String(nextAuditId++),
+  const data = {
     name,
     scope: scope || '',
     teamMembers: teamMembers || '',
@@ -173,27 +189,56 @@ apiRouter.post('/audits', (req, res) => {
     createdAt: new Date().toISOString(),
   };
 
-  audits.push(audit);
-  res.status(201).json(audit);
+  try {
+    const docRef = await db
+      .collection('organizations')
+      .doc(orgId)
+      .collection('audits')
+      .add(data);
+
+    const audit = {
+      id: docRef.id,
+      ...data,
+      organization: orgId,
+    };
+
+    res.status(201).json(audit);
+  } catch (err) {
+    console.error('Error creating audit in Firestore', err);
+    res.status(500).json({ error: 'Failed to create audit' });
+  }
 });
 
-apiRouter.put('/audits/:id', (req, res) => {
+apiRouter.put('/audits/:id', async (req, res) => {
   const { id } = req.params;
-  const index = audits.findIndex((a) => a.id === id);
+  try {
+    const snapshot = await db
+      .collectionGroup('audits')
+      .where(admin.firestore.FieldPath.documentId(), '==', id)
+      .limit(1)
+      .get();
 
-  if (index === -1) {
-    return res.status(404).json({ error: 'Audit not found' });
+    if (snapshot.empty) {
+      return res.status(404).json({ error: 'Audit not found' });
+    }
+
+    const doc = snapshot.docs[0];
+    const current = doc.data();
+    const updated = {
+      ...current,
+      ...req.body,
+    };
+
+    await doc.ref.set(updated, { merge: true });
+
+    const orgRef = doc.ref.parent.parent;
+    const organization = orgRef ? orgRef.id : updated.organization || 'Default Organization';
+
+    res.json({ id: doc.id, ...updated, organization });
+  } catch (err) {
+    console.error('Error updating audit in Firestore', err);
+    res.status(500).json({ error: 'Failed to update audit' });
   }
-
-  const current = audits[index];
-  const updated = {
-    ...current,
-    ...req.body,
-    id: current.id,
-  };
-
-  audits[index] = updated;
-  res.json(updated);
 });
 
 // Controls endpoints
@@ -211,6 +256,10 @@ apiRouter.get('/controls', (req, res) => {
 });
 
 // Control test results per audit
+// (Still in-memory for now; could also be moved to Firestore)
+let controlTests = [];
+let nextControlTestId = 1;
+
 apiRouter.get('/audits/:id/control-tests', (req, res) => {
   const { id } = req.params;
   const items = controlTests.filter((t) => t.auditId === id);
@@ -270,13 +319,34 @@ apiRouter.post('/audits/:id/control-tests', (req, res) => {
 });
 
 // Evidence endpoints
-apiRouter.get('/audits/:id/evidence', (req, res) => {
+apiRouter.get('/audits/:id/evidence', async (req, res) => {
   const { id } = req.params;
-  const items = evidences.filter((e) => e.auditId === id);
-  res.json({ items });
+  try {
+    const auditSnapshot = await db
+      .collectionGroup('audits')
+      .where(admin.firestore.FieldPath.documentId(), '==', id)
+      .limit(1)
+      .get();
+
+    if (auditSnapshot.empty) {
+      return res.status(404).json({ error: 'Audit not found' });
+    }
+
+    const auditDoc = auditSnapshot.docs[0];
+    const evidenceSnapshot = await auditDoc.ref.collection('evidence').get();
+    const items = evidenceSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json({ items });
+  } catch (err) {
+    console.error('Error fetching evidence from Firestore', err);
+    res.status(500).json({ error: 'Failed to fetch evidence' });
+  }
 });
 
-apiRouter.post('/audits/:id/evidence', (req, res) => {
+apiRouter.post('/audits/:id/evidence', async (req, res) => {
   const { id } = req.params;
   const {
     controlId,
@@ -286,41 +356,56 @@ apiRouter.post('/audits/:id/evidence', (req, res) => {
     link,
   } = req.body || {};
 
-  const auditExists = audits.some((a) => a.id === id);
-  if (!auditExists) {
-    return res.status(404).json({ error: 'Audit not found' });
-  }
-
   if (!controlId) {
     return res
       .status(400)
       .json({ error: 'Missing required field: controlId' });
   }
 
-  const controlExists = controlLibrary.some((c) => c.id === controlId);
-  if (!controlExists) {
-    return res.status(404).json({ error: 'Control not found' });
+  try {
+    const auditSnapshot = await db
+      .collectionGroup('audits')
+      .where(admin.firestore.FieldPath.documentId(), '==', id)
+      .limit(1)
+      .get();
+
+    if (auditSnapshot.empty) {
+      return res.status(404).json({ error: 'Audit not found' });
+    }
+
+    const controlExists = controlLibrary.some((c) => c.id === controlId);
+    if (!controlExists) {
+      return res.status(404).json({ error: 'Control not found' });
+    }
+
+    if (!title) {
+      return res
+        .status(400)
+        .json({ error: 'Missing required field: title' });
+    }
+
+    const auditDoc = auditSnapshot.docs[0];
+
+    const data = {
+      auditId: id,
+      controlId,
+      type: type || 'Other',
+      title,
+      description: description || '',
+      link: link || '',
+      uploadedAt: new Date().toISOString(),
+    };
+
+    const docRef = await auditDoc.ref.collection('evidence').add(data);
+
+    res.status(201).json({
+      id: docRef.id,
+      ...data,
+    });
+  } catch (err) {
+    console.error('Error creating evidence in Firestore', err);
+    res.status(500).json({ error: 'Failed to create evidence' });
   }
-
-  if (!title) {
-    return res
-      .status(400)
-      .json({ error: 'Missing required field: title' });
-  }
-
-  const evidence = {
-    id: String(nextEvidenceId++),
-    auditId: id,
-    controlId,
-    type: type || 'Other',
-    title,
-    description: description || '',
-    link: link || '',
-    uploadedAt: new Date().toISOString(),
-  };
-
-  evidences.push(evidence);
-  res.status(201).json(evidence);
 });
 
 app.use('/api', apiRouter);

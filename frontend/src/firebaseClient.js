@@ -10,6 +10,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'undefined') {
+  console.error(
+    'Firebase API key is missing. Create frontend/.env from frontend/.env.example and set VITE_FIREBASE_* from Firebase Console → Project settings → Your apps.'
+  );
+}
+
 let app;
 
 export function getFirebaseApp() {
